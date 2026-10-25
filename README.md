@@ -29,7 +29,7 @@ tests/kernels/build.sh                                  # C++ emission against t
 GODOT=<godot 4> tests/kernels/gpu.sh                    # SPIR-V on a RenderingDevice, in a window
 ```
 
-`kernels/gen.sh` needs `slangc` 2026.13. After a deliberate change to a kernel, run `elixir kernels/pin.exs --clear`, then `kernels/gen.sh`, then `elixir kernels/pin.exs`. Every test also runs its controls: a perturbed star, a twisting completion, a wrong axis, a moved oracle entry. The test fails if a control passes.
+`kernels/gen.sh` needs `slangc` 2026.13. The committed C++ emits include `slang-cpp-prelude.h`; `tests/kernels/build.sh` finds it in the `include/` folder of that slang install, or in `SLANG_INCLUDE`. After a deliberate change to a kernel, run `elixir kernels/pin.exs --clear`, then `kernels/gen.sh`, then `elixir kernels/pin.exs`. Every test also runs its controls: a perturbed star, a twisting completion, a wrong axis, a moved oracle entry. The test fails if a control passes.
 
 ## Licence
 
