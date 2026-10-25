@@ -9,7 +9,8 @@
 #                               # emit = the committed slang.
 #
 #   Lean (lean/, `lake exe emit_rotation_star`)  ->  slang/<k>.slang     (committed)
-#     slangc -target cpp                          ->  cpp/<k>_emit.cpp    (committed)
+#     slangc -target cpp                          ->  cpp/<k>_emit.cpp    (committed, prelude as
+#                                                     one `#include "slang-cpp-prelude.h"`)
 #     slangc -target spirv -fp-mode precise       ->  spv/<k>.spv         (committed)
 #
 # slangc is pinned to 2026.13 (SLANGC overrides the binary): another version emits different
@@ -28,6 +29,24 @@ case "${1:-}" in
 	*) echo "unknown option: $1" >&2; exit 2 ;;
 esac
 
+# One slangc build inlines its C++ prelude, another (the release tarballs) writes an absolute
+# #include of it; past that the emits are byte-identical. Commit neither: replace the prelude
+# with `#include "slang-cpp-prelude.h"`, found at build time in the slang install's include/.
+norm_prelude() {
+	awk '
+		NR == 1 && /^#include ".*slang-cpp-prelude\.h"$/ { print "#include \"slang-cpp-prelude.h\""; next }
+		NR == 1 && /^#ifndef SLANG_CPP_PRELUDE_H$/ { inl = 1 }
+		inl {
+			b2 = b1; b1 = b0; b0 = $0
+			if (b1 == "#ifdef SLANG_PRELUDE_NAMESPACE" && b0 ~ /^using namespace/) {
+				print "#include \"slang-cpp-prelude.h\""; print b2; print b1; print b0; inl = 0
+			}
+			next
+		}
+		{ print }
+	' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
 # gen <kernels dir>: emit (unless --no-emit) and compile into <dir>/{slang,cpp,spv}.
 gen() {
 	local out="$1"
@@ -38,6 +57,7 @@ gen() {
 	for k in $KERNELS; do
 		# Relative paths: slangc writes the input path into a #line directive.
 		( cd "$out" && "$SLANGC" -target cpp -stage compute -entry main -o "cpp/${k}_emit.cpp" "slang/$k.slang" )
+		norm_prelude "$out/cpp/${k}_emit.cpp"
 		"$SLANGC" -target spirv -profile sm_6_5 -stage compute -entry main -fp-mode precise \
 			-o "$out/spv/$k.spv" "$out/slang/$k.slang"
 	done
